@@ -1,5 +1,5 @@
 import axios from "../utils/axios";
-import { getToken, setToken } from "./TokenService";
+import { setToken } from "./TokenService";
 
 export async function login(credentials: {
   email: string;
@@ -16,12 +16,40 @@ export async function login(credentials: {
 }
 
 export async function loadUser() {
-  const token = await getToken();
-  const { data: user } = await axios.get("/user", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  console.log("Loading user...");
+  try {
+    const { data: user } = await axios.get("/user");
+    console.log("User loaded successfully:", user);
+    return user;
+  } catch (error) {
+    console.error("Failed to load user:", error);
+    throw error;
+  }
+}
 
-  return user;
+export async function logout() {
+  console.log("Attempting logout...");
+  try {
+    await axios.post("/logout");
+    console.log("Logout request successful");
+  } catch (error) {
+    console.log("Logout request failed, but continuing to clear token:", error);
+  }
+  await setToken(null);
+  console.log("Token cleared");
+}
+
+export async function register(info: any) {
+  console.log("Attempting registration with:", info);
+  console.log("Making request to:", axios.defaults.baseURL + "/register");
+  
+  const { data } = await axios.post("/register", info);
+  console.log("Registration response:", data);
+  
+  await setToken(data.token);
+}
+
+export async function sendPasswordResetLink(email: string) {
+    const { data } = await axios.post("/forgot-password", { email });
+    return data.status;
 }

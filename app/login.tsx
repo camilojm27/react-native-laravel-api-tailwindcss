@@ -7,21 +7,25 @@ import {
   Button,
   TouchableOpacity,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { router } from "expo-router";
 import FormTextField from "../components/FormTextField";
 import { loadUser, login } from "../services/AuthService";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Login() {
+  const { setUser } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{
     email?: string[];
     password?: string[];
   }>({});
+  const [generalError, setGeneralError] = useState<string>("");
 
   async function handleLogin() {
     setErrors({});
+    setGeneralError("");
     try {
       console.log(email, password);
       await login({
@@ -30,16 +34,26 @@ export default function Login() {
         device_name: `${Platform.OS} ${Platform.Version}`,
       });
       const user = await loadUser();
-      console.log("user", user);``
+      console.log("user", user);
+      setUser(user);
       // Navigate to tabs after successful login
       router.replace("/(tabs)");
     } catch (errors: any) {
+      console.error("Login failed:", errors);
       if (errors.response?.status === 422) {
-        console.log("errors", errors.response.data.errors);
+        console.log("Validation errors:", errors.response.data.errors);
         setErrors(errors.response.data.errors);
-      }
-      if (errors.response?.status === 500) {
-        console.error("errors", errors.response.data);
+      } else if (errors.response?.status === 401) {
+        setGeneralError("Invalid credentials. Please check your email and password.");
+      } else if (errors.response?.status === 500) {
+        console.error("Server error:", errors.response.data);
+        setGeneralError("Server error occurred. Please try again later.");
+      } else if (errors.response) {
+        setGeneralError(`Error: ${errors.response.data.message || 'Login failed'}`);
+      } else if (errors.request) {
+        setGeneralError("Network error. Please check your connection and try again.");
+      } else {
+        setGeneralError("An unexpected error occurred. Please try again.");
       }
     }
   }
@@ -48,6 +62,13 @@ export default function Login() {
     <SafeAreaView style={styles.wrapper}>
       <View style={styles.container}>
         <Text style={styles.title}>Welcome Back</Text>
+        
+        {generalError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.generalError}>{generalError}</Text>
+          </View>
+        ) : null}
+        
         <FormTextField
           label="Email address"
           value={email}
@@ -71,6 +92,15 @@ export default function Login() {
         >
           <Text style={styles.registerText}>
             Don't have an account? Register here
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.registerLink} 
+          onPress={() => router.push("/forgot-password")}
+        >
+          <Text style={styles.registerText}>
+            Forgot Password?
           </Text>
         </TouchableOpacity>
       </View>
@@ -100,5 +130,16 @@ const styles = StyleSheet.create({
   registerText: {
     color: "#007AFF",
     fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: "#FFD1D1",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  generalError: {
+    color: "#FF0000",
+    fontSize: 14,
+    fontWeight: "bold",
   },
 });

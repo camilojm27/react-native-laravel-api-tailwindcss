@@ -7,11 +7,14 @@ import {
   Button,
   TouchableOpacity,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { router } from "expo-router";
 import FormTextField from "../components/FormTextField";
+import { register, loadUser } from "../services/AuthService";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Register() {
+  const { setUser } = useContext(AuthContext);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,21 +25,43 @@ export default function Register() {
     password?: string[];
     password_confirmation?: string[];
   }>({});
+  const [generalError, setGeneralError] = useState<string>("");
 
   async function handleRegister() {
     setErrors({});
+    setGeneralError("");
     try {
-      console.log("Registration:", { name, email, password, passwordConfirmation });
-      // Add your registration logic here
-      // For now, just navigate to login
-      router.replace("/login");
+      console.log("Starting registration process...");
+      await register({
+        name,
+        email,
+        password,
+        password_confirmation: passwordConfirmation,
+        device_name: `${Platform.OS} ${Platform.Version}`,
+      });
+      console.log("Registration successful, loading user...");
+      const user = await loadUser();
+      console.log("User loaded:", user);
+      setUser(user);
+      console.log("User set in context, navigating to tabs...");
+      router.replace("/(tabs)");
     } catch (errors: any) {
+      console.error("Registration failed:", errors);
       if (errors.response?.status === 422) {
-        console.log("errors", errors.response.data.errors);
+        console.log("Validation errors:", errors.response.data.errors);
         setErrors(errors.response.data.errors);
-      }
-      if (errors.response?.status === 500) {
-        console.error("errors", errors.response.data);
+      } else if (errors.response?.status === 500) {
+        console.error("Server error:", errors.response.data);
+        setGeneralError("Server error occurred. Please try again later.");
+      } else if (errors.response) {
+        // Handle other HTTP errors
+        setGeneralError(`Error: ${errors.response.data.message || 'Registration failed'}`);
+      } else if (errors.request) {
+        // Network error
+        setGeneralError("Network error. Please check your connection and try again.");
+      } else {
+        // Other errors
+        setGeneralError("An unexpected error occurred. Please try again.");
       }
     }
   }
@@ -45,6 +70,12 @@ export default function Register() {
     <SafeAreaView style={styles.wrapper}>
       <View style={styles.container}>
         <Text style={styles.title}>Create Account</Text>
+        
+        {generalError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.generalError}>{generalError}</Text>
+          </View>
+        ) : null}
         
         <FormTextField
           label="Full Name"
@@ -114,5 +145,16 @@ const styles = StyleSheet.create({
   loginText: {
     color: "#007AFF",
     fontSize: 16,
+  },
+  errorContainer: {
+    backgroundColor: "#FFD1D1",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  generalError: {
+    color: "#FF0000",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

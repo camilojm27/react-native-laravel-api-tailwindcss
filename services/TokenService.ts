@@ -2,7 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 let token: string | null = null;
 
-export async function setToken(newToken: string) {
+export async function setToken(newToken: string | null) {
   token = newToken;
   if (token !== null) {
     await SecureStore.setItemAsync("token", token);
