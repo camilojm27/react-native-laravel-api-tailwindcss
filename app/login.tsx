@@ -4,142 +4,215 @@ import {
   SafeAreaView,
   StyleSheet,
   Platform,
-  Button,
   TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import React, { useState, useContext } from "react";
 import { router } from "expo-router";
 import FormTextField from "../components/FormTextField";
 import { loadUser, login } from "../services/AuthService";
 import { AuthContext } from "../context/AuthContext";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Ionicons } from "@expo/vector-icons";
+
+const LoginSchema = z.object({
+  email: z.string().email("Please enter a valid email address."),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters long."),
+});
+
+type LoginFormData = z.infer<typeof LoginSchema>;
 
 export default function Login() {
   const { setUser } = useContext(AuthContext);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{
-    email?: string[];
-    password?: string[];
-  }>({});
   const [generalError, setGeneralError] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function handleLogin() {
-    setErrors({});
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(LoginSchema),
+  });
+
+  async function handleLogin(data: LoginFormData) {
     setGeneralError("");
+    setIsLoading(true);
     try {
-      console.log(email, password);
       await login({
-        email,
-        password,
+        ...data,
         device_name: `${Platform.OS} ${Platform.Version}`,
       });
       const user = await loadUser();
-      console.log("user", user);
       setUser(user);
-      // Navigate to tabs after successful login
       router.replace("/(tabs)");
-    } catch (errors: any) {
-      console.error("Login failed:", errors);
-      if (errors.response?.status === 422) {
-        console.log("Validation errors:", errors.response.data.errors);
-        setErrors(errors.response.data.errors);
-      } else if (errors.response?.status === 401) {
+    } catch (error: any) {
+      if (error.response?.status === 401) {
         setGeneralError("Invalid credentials. Please check your email and password.");
-      } else if (errors.response?.status === 500) {
-        console.error("Server error:", errors.response.data);
-        setGeneralError("Server error occurred. Please try again later.");
-      } else if (errors.response) {
-        setGeneralError(`Error: ${errors.response.data.message || 'Login failed'}`);
-      } else if (errors.request) {
-        setGeneralError("Network error. Please check your connection and try again.");
       } else {
         setGeneralError("An unexpected error occurred. Please try again.");
       }
+    } finally {
+      setIsLoading(false);
     }
   }
 
   return (
     <SafeAreaView style={styles.wrapper}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Welcome Back</Text>
-        
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        <View style={styles.header}>
+          <Ionicons name="lock-closed-outline" size={50} color="#334155" />
+          <Text style={styles.title}>Welcome Back!</Text>
+          <Text style={styles.subtitle}>Sign in to your account</Text>
+        </View>
+
         {generalError ? (
           <View style={styles.errorContainer}>
             <Text style={styles.generalError}>{generalError}</Text>
           </View>
         ) : null}
-        
-        <FormTextField
-          label="Email address"
-          value={email}
-          onChangeText={(text) => setEmail(text)}
-          keyboardType="email-address"
-          errors={errors.email}
-        />
-        <FormTextField
-          label="Password:"
-          value={password}
-          onChangeText={(text) => setPassword(text)}
-          keyboardType="default"
-          secureTextEntry={true}
-          errors={errors.password}
-        />
-        <Button title="Login" onPress={handleLogin} />
-        
-        <TouchableOpacity 
-          style={styles.registerLink} 
-          onPress={() => router.push("/register")}
-        >
-          <Text style={styles.registerText}>
-            Don't have an account? Register here
-          </Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.registerLink} 
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Email address"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              keyboardType="email-address"
+              errors={errors.email ? [errors.email.message!] : []}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Password"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              isPassword={true}
+              errors={errors.password ? [errors.password.message!] : []}
+            />
+          )}
+        />
+        <TouchableOpacity
+          style={styles.forgotPassword}
           onPress={() => router.push("/forgot-password")}
         >
-          <Text style={styles.registerText}>
-            Forgot Password?
-          </Text>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>
-      </View>
+
+        <TouchableOpacity
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleSubmit(handleLogin)}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Login</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.registerLinkContainer}>
+          <Text style={styles.registerText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={() => router.push("/register")}>
+            <Text style={styles.registerLink}>Register here</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8FAFC",
     flex: 1,
   },
   container: {
-    padding: 16,
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 40,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 32,
-    marginTop: 32,
-  },
-  registerLink: {
+    color: "#1E293B",
     marginTop: 16,
-    alignItems: "center",
   },
-  registerText: {
-    color: "#007AFF",
+  subtitle: {
     fontSize: 16,
+    color: "#64748B",
+    marginTop: 8,
   },
   errorContainer: {
-    backgroundColor: "#FFD1D1",
+    backgroundColor: "#FECACA",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    alignItems: "center",
   },
   generalError: {
-    color: "#FF0000",
+    color: "#DC2626",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  forgotPassword: {
+    alignSelf: "flex-end",
+    marginBottom: 24,
+  },
+  forgotPasswordText: {
+    color: "#0EA5E9",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  button: {
+    backgroundColor: "#0EA5E9",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  buttonDisabled: {
+    backgroundColor: "#67BEE8",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  registerLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  registerText: {
+    color: "#475569",
+    fontSize: 14,
+  },
+  registerLink: {
+    color: "#0EA5E9",
     fontSize: 14,
     fontWeight: "bold",
+    marginLeft: 4,
   },
 });

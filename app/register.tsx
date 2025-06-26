@@ -4,157 +4,239 @@ import {
   SafeAreaView,
   StyleSheet,
   Platform,
-  Button,
   TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import React, { useState, useContext } from "react";
 import { router } from "expo-router";
 import FormTextField from "../components/FormTextField";
 import { register, loadUser } from "../services/AuthService";
 import { AuthContext } from "../context/AuthContext";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Ionicons } from "@expo/vector-icons";
+
+const RegisterSchema = z
+  .object({
+    name: z.string().min(1, "Full name is required."),
+    email: z.string().email("Please enter a valid email address."),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters long."),
+    password_confirmation: z.string(),
+  })
+  .refine((data) => data.password === data.password_confirmation, {
+    message: "Passwords do not match.",
+    path: ["password_confirmation"],
+  });
+
+type RegisterFormData = z.infer<typeof RegisterSchema>;
 
 export default function Register() {
   const { setUser } = useContext(AuthContext);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [errors, setErrors] = useState<{
-    name?: string[];
-    email?: string[];
-    password?: string[];
-    password_confirmation?: string[];
-  }>({});
   const [generalError, setGeneralError] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function handleRegister() {
-    setErrors({});
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(RegisterSchema),
+  });
+
+  async function handleRegister(data: RegisterFormData) {
     setGeneralError("");
+    setIsLoading(true);
     try {
-      console.log("Starting registration process...");
       await register({
-        name,
-        email,
-        password,
-        password_confirmation: passwordConfirmation,
+        ...data,
         device_name: `${Platform.OS} ${Platform.Version}`,
       });
-      console.log("Registration successful, loading user...");
       const user = await loadUser();
-      console.log("User loaded:", user);
       setUser(user);
-      console.log("User set in context, navigating to tabs...");
       router.replace("/(tabs)");
-    } catch (errors: any) {
-      console.error("Registration failed:", errors);
-      if (errors.response?.status === 422) {
-        console.log("Validation errors:", errors.response.data.errors);
-        setErrors(errors.response.data.errors);
-      } else if (errors.response?.status === 500) {
-        console.error("Server error:", errors.response.data);
-        setGeneralError("Server error occurred. Please try again later.");
-      } else if (errors.response) {
-        // Handle other HTTP errors
-        setGeneralError(`Error: ${errors.response.data.message || 'Registration failed'}`);
-      } else if (errors.request) {
-        // Network error
-        setGeneralError("Network error. Please check your connection and try again.");
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        setGeneralError(error.response.data.message);
       } else {
-        // Other errors
         setGeneralError("An unexpected error occurred. Please try again.");
       }
+    } finally {
+      setIsLoading(false);
     }
   }
 
   return (
     <SafeAreaView style={styles.wrapper}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Create Account</Text>
-        
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        <View style={styles.header}>
+          <Ionicons name="person-add-outline" size={50} color="#334155" />
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Start your journey with us</Text>
+        </View>
+
         {generalError ? (
           <View style={styles.errorContainer}>
             <Text style={styles.generalError}>{generalError}</Text>
           </View>
         ) : null}
-        
-        <FormTextField
-          label="Full Name"
-          value={name}
-          onChangeText={(text) => setName(text)}
-          errors={errors.name}
+
+        <Controller
+          control={control}
+          name="name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Full Name"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              errors={errors.name ? [errors.name.message!] : []}
+            />
+          )}
         />
-        
-        <FormTextField
-          label="Email address"
-          value={email}
-          onChangeText={(text) => setEmail(text)}
-          keyboardType="email-address"
-          errors={errors.email}
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Email address"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              keyboardType="email-address"
+              errors={errors.email ? [errors.email.message!] : []}
+            />
+          )}
         />
-        
-        <FormTextField
-          label="Password"
-          value={password}
-          onChangeText={(text) => setPassword(text)}
-          secureTextEntry={true}
-          errors={errors.password}
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Password"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              isPassword={true}
+              errors={errors.password ? [errors.password.message!] : []}
+            />
+          )}
         />
-        
-        <FormTextField
-          label="Confirm Password"
-          value={passwordConfirmation}
-          onChangeText={(text) => setPasswordConfirmation(text)}
-          secureTextEntry={true}
-          errors={errors.password_confirmation}
+        <Controller
+          control={control}
+          name="password_confirmation"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormTextField
+              label="Confirm Password"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              isPassword={true}
+              errors={
+                errors.password_confirmation
+                  ? [errors.password_confirmation.message!]
+                  : []
+              }
+            />
+          )}
         />
-        
-        <Button title="Register" onPress={handleRegister} />
-        
-        <TouchableOpacity 
-          style={styles.loginLink} 
-          onPress={() => router.push("/login")}
+
+        <TouchableOpacity
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleSubmit(handleRegister)}
+          disabled={isLoading}
         >
-          <Text style={styles.loginText}>
-            Already have an account? Login here
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Create Account</Text>
+          )}
         </TouchableOpacity>
-      </View>
+
+        <View style={styles.loginLinkContainer}>
+          <Text style={styles.loginText}>Already have an account?</Text>
+          <TouchableOpacity onPress={() => router.push("/login")}>
+            <Text style={styles.loginLink}>Login here</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: "#fff",
+    backgroundColor: "#F8FAFC",
     flex: 1,
   },
   container: {
-    padding: 16,
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 40,
   },
   title: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 32,
-    marginTop: 32,
-  },
-  loginLink: {
+    color: "#1E293B",
     marginTop: 16,
-    alignItems: "center",
   },
-  loginText: {
-    color: "#007AFF",
+  subtitle: {
     fontSize: 16,
+    color: "#64748B",
+    marginTop: 8,
   },
   errorContainer: {
-    backgroundColor: "#FFD1D1",
+    backgroundColor: "#FECACA",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    alignItems: "center",
   },
   generalError: {
-    color: "#FF0000",
+    color: "#DC2626",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  button: {
+    backgroundColor: "#0EA5E9",
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    marginTop: 16,
+  },
+  buttonDisabled: {
+    backgroundColor: "#67BEE8",
+  },
+  buttonText: {
+    color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  loginLinkContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  loginText: {
+    color: "#475569",
+    fontSize: 14,
+  },
+  loginLink: {
+    color: "#0EA5E9",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginLeft: 4,
   },
 });
