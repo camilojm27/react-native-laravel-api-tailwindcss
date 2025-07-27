@@ -8,11 +8,26 @@ export async function login(credentials: {
 }) {
   console.log("Attempting login with:", credentials);
   console.log("Making request to:", axios.defaults.baseURL + "/login");
-  
-  const { data } = await axios.post("/login", credentials);
-  console.log("Login response:", data);
 
-  await setToken(data.token);
+  try {
+    const { data } = await axios.post("/login", credentials);
+    console.log("Login response:", data);
+
+    await setToken(data.token);
+  } catch (error: any) {
+    console.error("Login error details:", {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL,
+      },
+    });
+    throw error;
+  }
 }
 
 export async function loadUser() {
@@ -42,14 +57,14 @@ export async function logout() {
 export async function register(info: any) {
   console.log("Attempting registration with:", info);
   console.log("Making request to:", axios.defaults.baseURL + "/register");
-  
+
   const { data } = await axios.post("/register", info);
   console.log("Registration response:", data);
-  
+
   await setToken(data.token);
 }
 
 export async function sendPasswordResetLink(email: string) {
-    const { data } = await axios.post("/forgot-password", { email });
-    return data.status;
+  const { data } = await axios.post("/forgot-password", { email });
+  return data.status;
 }

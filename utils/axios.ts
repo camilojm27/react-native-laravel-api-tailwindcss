@@ -9,13 +9,39 @@ const axios = axiosLib.create({
   },
 });
 
-axios.interceptors.request.use(async (request) => {
-  const token = await getToken();
-  if (token) {
-    request.headers.Authorization = `Bearer ${token}`;
+axios.interceptors.request.use(
+  async (request) => {
+    console.log(
+      `Making ${request.method?.toUpperCase()} request to:`,
+      request.url
+    );
+    const token = await getToken();
+    if (token) {
+      request.headers.Authorization = `Bearer ${token}`;
+    }
+    return request;
+  },
+  (error) => {
+    console.error("Request interceptor error:", error);
+    return Promise.reject(error);
   }
-  return request;
-});
+);
+
+axios.interceptors.response.use(
+  (response) => {
+    console.log(`Response from ${response.config.url}:`, response.status);
+    return response;
+  },
+  (error) => {
+    console.error("Response interceptor error:", {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+    });
+    return Promise.reject(error);
+  }
+);
 
 // Add debugging
 console.log("Backend URL:", process.env.EXPO_PUBLIC_BACKEND_URL);

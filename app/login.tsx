@@ -19,10 +19,8 @@ import { z } from "zod";
 import { Ionicons } from "@expo/vector-icons";
 
 const LoginSchema = z.object({
-  email: z.string().email("Please enter a valid email address."),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters long."),
+  email: z.email("Please enter a valid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters long."),
 });
 
 type LoginFormData = z.infer<typeof LoginSchema>;
@@ -52,10 +50,32 @@ export default function Login() {
       setUser(user);
       router.replace("/(tabs)");
     } catch (error: any) {
-      if (error.response?.status === 401) {
-        setGeneralError("Invalid credentials. Please check your email and password.");
+      console.error("Login failed:", error);
+
+      if (error.response?.status === 422) {
+        // Validation errors
+        const validationErrors = error.response.data?.errors;
+        if (validationErrors) {
+          setGeneralError(Object.values(validationErrors).flat().join(", "));
+        } else {
+          setGeneralError("Please check your input and try again.");
+        }
+      } else if (error.response?.status === 401) {
+        setGeneralError(
+          "Invalid credentials. Please check your email and password."
+        );
+      } else if (error.code === "NETWORK_ERROR" || !error.response) {
+        setGeneralError(
+          "Network error. Please check your internet connection and ensure the server is running."
+        );
       } else {
-        setGeneralError("An unexpected error occurred. Please try again.");
+        setGeneralError(
+          `An error occurred: ${
+            error.response?.data?.message ||
+            error.message ||
+            "Please try again."
+          }`
+        );
       }
     } finally {
       setIsLoading(false);

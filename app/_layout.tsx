@@ -1,4 +1,4 @@
-import { Stack } from "expo-router/stack";
+import { Stack, useRouter } from "expo-router";
 import { AuthContext, User } from "../context/AuthContext";
 import React, { useEffect, useState } from "react";
 import { loadUser } from "../services/AuthService";
@@ -7,6 +7,7 @@ import SplashScreen from "./splash";
 export default function Layout() {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState("loading");
+  const router = useRouter();
 
   useEffect(() => {
     async function runEffect() {
@@ -22,30 +23,31 @@ export default function Layout() {
     runEffect();
   }, []);
 
-  // Add logging for user state changes
+  // Handle initial navigation after loading
   useEffect(() => {
-    console.log("User state changed:", user);
-  }, [user]);
+    if (status === "idle") {
+      if (user) {
+        console.log("User authenticated, navigating to tabs");
+        router.replace("/(tabs)");
+      } else {
+        console.log("User not authenticated, navigating to login");
+        router.replace("/login");
+      }
+    }
+  }, [status, user, router]);
 
   if (status === "loading") {
     return <SplashScreen />;
   }
 
-  console.log("Rendering layout with user:", user ? "authenticated" : "not authenticated");
-
   return (
-<AuthContext.Provider value={{ user, setUser }}>
-    <Stack>
-      {user ? (
+    <AuthContext.Provider value={{ user, setUser }}>
+      <Stack initialRouteName="login">
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      ) : (
-          <>
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="register" options={{ headerShown: false }} />
-            <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-          </>
-      )}
-    </Stack>
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+      </Stack>
     </AuthContext.Provider>
   );
 }
